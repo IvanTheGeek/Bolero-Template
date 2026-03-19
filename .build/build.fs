@@ -1,6 +1,12 @@
 module Build
 
+open System
+open System.Diagnostics
 open System.IO
+open System.Net.Http
+open System.Text.Json
+open System.Text.RegularExpressions
+open System.Threading
 open Fake.Core
 open Fake.Core.TargetOperators
 open Fake.DotNet
@@ -39,6 +45,76 @@ let contentBaseDir = slnDir </> "content"
 let buildOutputDir = slnDir </> "build"
 let packageName = "Bolero.Templates"
 let packageOutputFile o = buildOutputDir </> $"{packageName}.{version o}.nupkg"
+
+let private generatedProjectDir baseDir projectName args =
+    let suffix =
+        if List.contains "--render=WebAssembly" args then ".Client"
+        else ".Server"
+    baseDir </> projectName </> "src" </> (projectName + suffix)
+
+let private launchProfile projectDir =
+    use doc = JsonDocument.Parse(File.ReadAllText(projectDir </> "Properties" </> "launchSettings.json"))
+    let profile =
+        doc.RootElement.GetProperty("profiles").EnumerateObject()
+        |> Seq.find (fun p -> p.Value.GetProperty("commandName").GetString() = "Project")
+    let url =
+        profile.Value.GetProperty("applicationUrl").GetString().Split(';')
+        |> Array.find (fun u -> u.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+        |> fun u -> u.TrimEnd('/')
+    profile.Name, url
+
+let private waitForHomePage name (proc: Process) url =
+    use client = new HttpClient(Timeout = TimeSpan.FromSeconds 5.)
+    let deadline = DateTime.UtcNow.AddMinutes 1.
+    let mutable lastError = "The application never became reachable."
+    let mutable html = None
+    while html.IsNone && DateTime.UtcNow < deadline do
+        if proc.HasExited then
+            failwithf "%s exited before responding at %s." name url
+        try
+            use response = client.GetAsync(url).Result
+            let body = response.Content.ReadAsStringAsync().Result
+            if response.IsSuccessStatusCode then
+                html <- Some body
+            else
+                lastError <- $"HTTP %d{int response.StatusCode} from {url}: {body}"
+        with ex ->
+            lastError <- ex.Message
+        if html.IsNone then
+            Thread.Sleep 1000
+    match html with
+    | Some html -> html
+    | None -> failwithf "Timed out waiting for %s at %s. Last error: %s" name url lastError
+
+let private assertScriptAsset name url html =
+    if html.Contains("InvalidOperationException") then
+        failwithf "%s returned an InvalidOperationException page." name
+    let script = Regex.Match(html, "_framework/blazor\\.[^\"']+\\.js")
+    if not script.Success then
+        failwithf "%s did not emit a Blazor framework script tag." name
+    use client = new HttpClient(Timeout = TimeSpan.FromSeconds 5.)
+    let scriptUrl = Uri(Uri(url + "/"), script.Value)
+    use response = client.GetAsync(scriptUrl).Result
+    if not response.IsSuccessStatusCode then
+        failwithf "%s served %s with HTTP %d." name script.Value (int response.StatusCode)
+
+let private smokeTestProject baseDir projectName args =
+    let projectDir = generatedProjectDir baseDir projectName args
+    let profileName, url = launchProfile projectDir
+    Trace.tracefn $"Smoke testing {projectName} at {url}"
+    let startInfo = ProcessStartInfo("dotnet", $"run --no-build --launch-profile \"{profileName}\"")
+    startInfo.WorkingDirectory <- projectDir
+    startInfo.UseShellExecute <- false
+    startInfo.Environment["BROWSER"] <- "echo"
+    use proc = Process.Start(startInfo)
+    try
+        let html = waitForHomePage projectName proc url
+        assertScriptAsset projectName url html
+    finally
+        if not proc.HasExited then
+            proc.Kill(true)
+            proc.WaitForExit()
+
 let variantsToTest =
     let serverModes = [
         ("LegacyWasm","LegacyWebAssembly")
@@ -99,7 +175,7 @@ Target.create "install" <| fun o ->
 
 Target.description "Test all the template projects by building them."
 Target.create "test-build" <| fun o ->
-    // For each template variant, create and build a new project
+    // For each template variant, create, build and run a new project.
     let testsDir = slnDir </> "test-build"
     if cleanTest o && Directory.Exists(testsDir) then
         Directory.Delete(testsDir, recursive = true)
@@ -118,6 +194,7 @@ Target.create "test-build" <| fun o ->
             yield projectName
         ]
         dotnet' (baseDir </> projectName) [] "build" ["-v"; "n"]
+        smokeTestProject baseDir projectName args
 
 Target.description "Run the full release pipeline."
 Target.create "release" ignore

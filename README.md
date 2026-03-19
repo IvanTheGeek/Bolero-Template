@@ -12,14 +12,14 @@ To learn more, you can check [the documentation](https://fsbolero.io/docs).
 
 To get started, you need the following installed:
 
-* .NET SDK 8.0. Download it [here](https://dotnet.microsoft.com/download/dotnet/8.0).
+* .NET SDK 10.0. Download it [here](https://dotnet.microsoft.com/download/dotnet/10.0).
 
 ## Creating a project based on this template
 
 To create a project based on this template, first install the template to your local dotnet:
 
 ```
-dotnet new -i Bolero.Templates
+dotnet new install Bolero.Templates
 ```
 
 Then, you can create a project like so:
@@ -48,7 +48,7 @@ You can use the following options to customize the project being created:
 
         * `InteractiveWebAssembly` (the default) for client-side interactive render mode.
 
-        * `InteractiveServer` for server-side interactive render mode (see https://learn.microsoft.com/en-us/aspnet/core/blazor/components/render-modes?view=aspnetcore-8.0).
+        * `InteractiveServer` for server-side interactive render mode (see https://learn.microsoft.com/en-us/aspnet/core/blazor/components/render-modes?view=aspnetcore-10.0).
 
         * `InteractiveAuto` for automatic interactive render mode (client-side if available, otherwise server-side while downloading the client-side runtime in the background).
 
@@ -130,10 +130,10 @@ dotnet build
 To run it:
 
 ```shell
-dotnet run -p src/YourAppName.Server
+dotnet run --project src/YourAppName.Server
 
 # Or if you created the project with --server=false:
-dotnet run -p src/YourAppName.Client
+dotnet run --project src/YourAppName.Client
 ```
 
 ## Project structure
@@ -149,3 +149,4 @@ dotnet run -p src/YourAppName.Client
 ## Learn more about Bolero
 
 To learn more about Bolero, you can check [the documentation](https://fsbolero.io/docs).
+

@@ -49,6 +49,8 @@ let main args =
 
     let app = builder.Build()
 
+    app.MapStaticAssets() |> ignore
+
     if app.Environment.IsDevelopment() then
         app.UseWebAssemblyDebugging()
 
@@ -89,3 +91,4 @@ let main args =
 
     app.Run()
     0
+
