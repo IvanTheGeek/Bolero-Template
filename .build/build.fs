@@ -103,6 +103,20 @@ let private assertScriptAsset (name: string) (url: string) (html: string) =
     if not response.IsSuccessStatusCode then
         failwithf "%s served %s with HTTP %d." name script.Value (int response.StatusCode)
 
+let private assertStandaloneDotNet10Files baseDir projectName args =
+    if List.contains "--render=WebAssembly" args then
+        let clientDir = baseDir </> projectName </> "src" </> (projectName + ".Client")
+        let fsproj = File.ReadAllText(clientDir </> (projectName + ".Client.fsproj"))
+        if not (fsproj.Contains("OverrideHtmlAssetPlaceholders")) then
+            failwithf "%s is missing OverrideHtmlAssetPlaceholders in the client project." projectName
+        if not (fsproj.Contains("PackageReference Include=\"Microsoft.AspNetCore.Components.WebAssembly\"")) then
+            failwithf "%s is missing the Microsoft.AspNetCore.Components.WebAssembly package reference." projectName
+        let indexHtml = File.ReadAllText(clientDir </> "wwwroot" </> "index.html")
+        if not (indexHtml.Contains("<script type=\"importmap\"></script>")) then
+            failwithf "%s is missing the import map placeholder in wwwroot/index.html." projectName
+        if not (indexHtml.Contains("_framework/blazor.webassembly#[.{fingerprint}].js")) then
+            failwithf "%s is missing the fingerprinted Blazor WebAssembly script placeholder." projectName
+
 let private smokeTestProject baseDir projectName args =
     let projectDir = generatedProjectDir baseDir projectName args
     let profileName, url = launchProfile projectDir
@@ -198,6 +212,7 @@ Target.create "test-build" <| fun o ->
             yield "-o"
             yield projectName
         ]
+        assertStandaloneDotNet10Files baseDir projectName args
         dotnet' (baseDir </> projectName) [] "build" ["-v"; "n"]
         smokeTestProject baseDir projectName args
 

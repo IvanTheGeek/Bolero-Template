@@ -2,6 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <!-- //#if (pwa) -->
     <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
     <!-- //#endif -->
@@ -24,6 +25,7 @@
     <!-- //#if (hotreload_actual) -->
     <PackageReference Include="Bolero.HotReload" Version="BOLERO_VERSION" />
     <!-- //#endif -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.*" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.*" />
     <!-- //#if (!server) -->
     <PackageReference Include="System.Net.Http.Json" Version="10.0.*" />
