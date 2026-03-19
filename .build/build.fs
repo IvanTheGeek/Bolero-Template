@@ -45,6 +45,11 @@ let contentBaseDir = slnDir </> "content"
 let buildOutputDir = slnDir </> "build"
 let packageName = "Bolero.Templates"
 let packageOutputFile o = buildOutputDir </> $"{packageName}.{version o}.nupkg"
+let testBuildRoot =
+    Environment.GetEnvironmentVariable("BOLERO_TEMPLATE_TEST_BUILD_DIR")
+    |> Option.ofObj
+    |> Option.filter (String.IsNullOrWhiteSpace >> not)
+    |> Option.defaultValue (slnDir </> "test-build")
 
 let private generatedProjectDir baseDir projectName args =
     let suffix =
@@ -86,7 +91,7 @@ let private waitForHomePage name (proc: Process) url =
     | Some html -> html
     | None -> failwithf "Timed out waiting for %s at %s. Last error: %s" name url lastError
 
-let private assertScriptAsset name url html =
+let private assertScriptAsset (name: string) (url: string) (html: string) =
     if html.Contains("InvalidOperationException") then
         failwithf "%s returned an InvalidOperationException page." name
     let script = Regex.Match(html, "_framework/blazor\\.[^\"']+\\.js")
@@ -176,7 +181,7 @@ Target.create "install" <| fun o ->
 Target.description "Test all the template projects by building them."
 Target.create "test-build" <| fun o ->
     // For each template variant, create, build and run a new project.
-    let testsDir = slnDir </> "test-build"
+    let testsDir = testBuildRoot
     if cleanTest o && Directory.Exists(testsDir) then
         Directory.Delete(testsDir, recursive = true)
     let now = System.DateTime.Now
